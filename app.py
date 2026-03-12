@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string, redirect, url_for
 
 app = Flask(__name__)
 
@@ -27,52 +27,7 @@ def home():
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     """
 
-# API Routes
-@app.route('/api/students', methods=['GET'])
-def api_get_students():
-    return jsonify(students)
-
-@app.route('/api/students/<int:student_id>', methods=['GET'])
-def api_get_student(student_id):
-    student = next((s for s in students if s["id"] == student_id), None)
-    return jsonify(student) if student else (jsonify({"error": "Student not found"}), 404)
-
-@app.route('/api/students', methods=['POST'])
-def api_create_student():
-    data = request.get_json()
-    if not data or not all(k in data for k in ("name", "grade", "section")):
-        return jsonify({"error": "Invalid data"}), 400
-    new_student = {
-        "id": next_id(),
-        "name": data["name"],
-        "grade": data["grade"],
-        "section": data["section"]
-    }
-    students.append(new_student)
-    return jsonify(new_student), 201
-
-@app.route('/api/students/<int:student_id>', methods=['PUT'])
-def api_update_student(student_id):
-    student = next((s for s in students if s["id"] == student_id), None)
-    if not student:
-        return jsonify({"error": "Student not found"}), 404
-    data = request.get_json() or {}
-    student.update({
-        "name": data.get("name", student["name"]),
-        "grade": data.get("grade", student["grade"]),
-        "section": data.get("section", student["section"])
-    })
-    return jsonify(student)
-
-@app.route('/api/students/<int:student_id>', methods=['DELETE'])
-def api_delete_student(student_id):
-    global students
-    if any(s["id"] == student_id for s in students):
-        students = [s for s in students if s["id"] != student_id]
-        return jsonify({"message": "Student deleted successfully"})
-    return jsonify({"error": "Student not found"}), 404
-
-# Web UI for CRUD operations
+# Web UI with CRUD buttons
 @app.route('/students', methods=['GET', 'POST'])
 def students_page():
     message = None
@@ -113,7 +68,6 @@ def students_page():
             else:
                 message = {"type": "danger", "text": "Student not found."}
 
-    # Render HTML
     html = """
     <!doctype html>
     <html lang="en">
@@ -133,11 +87,12 @@ def students_page():
                 <div class="alert alert-{{ message.type }}">{{ message.text }}</div>
             {% endif %}
 
+            <!-- Add Student Form -->
             <div class="card mb-4 shadow-sm p-4">
-                <h4 class="mb-3">CRUD Operations</h4>
+                <h4 class="mb-3">Add / Update Student</h4>
                 <form method="post" class="row g-3">
                     <div class="col-md-2">
-                        <input type="text" name="student_id" class="form-control" placeholder="ID">
+                        <input type="text" name="student_id" class="form-control" placeholder="ID (for Update/Delete)">
                     </div>
                     <div class="col-md-3">
                         <input type="text" name="name" class="form-control" placeholder="Name">
@@ -157,6 +112,7 @@ def students_page():
                 </form>
             </div>
 
+            <!-- Search Result -->
             {% if search_result %}
                 <div class="card mb-4 shadow-sm p-3 border-success">
                     <h5 class="text-success">🎉 Student Found!</h5>
@@ -171,6 +127,7 @@ def students_page():
                 <div class="alert alert-warning">No student found with that ID.</div>
             {% endif %}
 
+            <!-- Student Table with Update/Delete Buttons -->
             <div class="card shadow-sm p-3">
                 <h4 class="mb-3">All Students</h4>
                 <table class="table table-striped table-hover">
@@ -180,6 +137,7 @@ def students_page():
                             <th>Name</th>
                             <th>Grade</th>
                             <th>Section</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -189,6 +147,20 @@ def students_page():
                             <td>{{ student.name }}</td>
                             <td>{{ student.grade }}</td>
                             <td>{{ student.section }}</td>
+                            <td>
+                                <!-- Each button submits the form with that student's ID -->
+                                <form method="post" style="display:inline;">
+                                    <input type="hidden" name="student_id" value="{{ student.id }}">
+                                    <input type="hidden" name="name" value="{{ student.name }}">
+                                    <input type="hidden" name="grade" value="{{ student.grade }}">
+                                    <input type="hidden" name="section" value="{{ student.section }}">
+                                    <button type="submit" name="action" value="update" class="btn btn-sm btn-primary">Update</button>
+                                </form>
+                                <form method="post" style="display:inline;">
+                                    <input type="hidden" name="student_id" value="{{ student.id }}">
+                                    <button type="submit" name="action" value="delete" class="btn btn-sm btn-danger">Delete</button>
+                                </form>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
