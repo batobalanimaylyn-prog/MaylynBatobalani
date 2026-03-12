@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template_string, redirect, url_for
+from flask import Flask, jsonify, request, render_template_string
 
 app = Flask(__name__)
 
@@ -11,9 +11,7 @@ students = [
 
 # Helper to generate new ID
 def next_id():
-    if students:
-        return max(s["id"] for s in students) + 1
-    return 1
+    return max([s["id"] for s in students], default=0) + 1
 
 # Home page
 @app.route('/')
@@ -37,18 +35,18 @@ def api_get_students():
 @app.route('/api/students/<int:student_id>', methods=['GET'])
 def api_get_student(student_id):
     student = next((s for s in students if s["id"] == student_id), None)
-    if student:
-        return jsonify(student)
-    return jsonify({"error": "Student not found"}), 404
+    return jsonify(student) if student else (jsonify({"error": "Student not found"}), 404)
 
 @app.route('/api/students', methods=['POST'])
 def api_create_student():
     data = request.get_json()
+    if not data or not all(k in data for k in ("name", "grade", "section")):
+        return jsonify({"error": "Invalid data"}), 400
     new_student = {
         "id": next_id(),
-        "name": data.get("name"),
-        "grade": data.get("grade"),
-        "section": data.get("section")
+        "name": data["name"],
+        "grade": data["grade"],
+        "section": data["section"]
     }
     students.append(new_student)
     return jsonify(new_student), 201
@@ -58,7 +56,7 @@ def api_update_student(student_id):
     student = next((s for s in students if s["id"] == student_id), None)
     if not student:
         return jsonify({"error": "Student not found"}), 404
-    data = request.get_json()
+    data = request.get_json() or {}
     student.update({
         "name": data.get("name", student["name"]),
         "grade": data.get("grade", student["grade"]),
@@ -69,44 +67,53 @@ def api_update_student(student_id):
 @app.route('/api/students/<int:student_id>', methods=['DELETE'])
 def api_delete_student(student_id):
     global students
-    students = [s for s in students if s["id"] != student_id]
-    return jsonify({"message": "Student deleted successfully"})
+    if any(s["id"] == student_id for s in students):
+        students = [s for s in students if s["id"] != student_id]
+        return jsonify({"message": "Student deleted successfully"})
+    return jsonify({"error": "Student not found"}), 404
 
 # Web UI for CRUD operations
 @app.route('/students', methods=['GET', 'POST'])
 def students_page():
     message = None
     search_result = None
+
     if request.method == 'POST':
         action = request.form.get("action")
         student_id = request.form.get("student_id")
-        name = request.form.get("name")
-        grade = request.form.get("grade")
-        section = request.form.get("section")
+        name = request.form.get("name", "").strip()
+        grade = request.form.get("grade", "").strip()
+        section = request.form.get("section", "").strip()
 
-        if action == "search" and student_id and student_id.isdigit():
-            student_id = int(student_id)
-            search_result = next((s for s in students if s["id"] == student_id), None)
-        elif action == "add" and name and grade.isdigit() and section:
-            new_student = {"id": next_id(), "name": name, "grade": int(grade), "section": section}
+        # Convert ID safely
+        student_id_int = int(student_id) if student_id and student_id.isdigit() else None
+        grade_int = int(grade) if grade.isdigit() else None
+
+        if action == "search" and student_id_int:
+            search_result = next((s for s in students if s["id"] == student_id_int), None)
+        elif action == "add" and name and grade_int is not None and section:
+            new_student = {"id": next_id(), "name": name, "grade": grade_int, "section": section}
             students.append(new_student)
             message = {"type": "success", "text": f"Student {name} added successfully!"}
-        elif action == "update" and student_id and student_id.isdigit():
-            student_id = int(student_id)
-            student = next((s for s in students if s["id"] == student_id), None)
+        elif action == "update" and student_id_int:
+            student = next((s for s in students if s["id"] == student_id_int), None)
             if student:
-                student.update({"name": name or student["name"], 
-                                "grade": int(grade) if grade else student["grade"], 
-                                "section": section or student["section"]})
+                student.update({
+                    "name": name or student["name"],
+                    "grade": grade_int if grade else student["grade"],
+                    "section": section or student["section"]
+                })
                 message = {"type": "success", "text": f"Student {student['name']} updated successfully!"}
             else:
                 message = {"type": "danger", "text": "Student not found."}
-        elif action == "delete" and student_id and student_id.isdigit():
-            student_id = int(student_id)
-            global students
-            students = [s for s in students if s["id"] != student_id]
-            message = {"type": "success", "text": "Student deleted successfully."}
+        elif action == "delete" and student_id_int:
+            if any(s["id"] == student_id_int for s in students):
+                students[:] = [s for s in students if s["id"] != student_id_int]
+                message = {"type": "success", "text": "Student deleted successfully."}
+            else:
+                message = {"type": "danger", "text": "Student not found."}
 
+    # Render HTML
     html = """
     <!doctype html>
     <html lang="en">
@@ -141,7 +148,7 @@ def students_page():
                     <div class="col-md-2">
                         <input type="text" name="section" class="form-control" placeholder="Section">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-3 d-flex flex-wrap gap-2">
                         <button type="submit" name="action" value="add" class="btn btn-success">Add</button>
                         <button type="submit" name="action" value="update" class="btn btn-primary">Update</button>
                         <button type="submit" name="action" value="delete" class="btn btn-danger">Delete</button>
