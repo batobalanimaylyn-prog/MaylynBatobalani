@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, render_template_string, redirect, url_for
 
 app = Flask(__name__)
 
@@ -9,26 +9,31 @@ students = [
     {"id": 3, "name": "Charlie", "grade": 10, "section": "Zechariah"}
 ]
 
-# Home route
+# Helper to generate new ID
+def next_id():
+    if students:
+        return max(s["id"] for s in students) + 1
+    return 1
+
+# Home page
 @app.route('/')
 def home():
     return """
     <div class="container mt-5">
         <div class="text-center">
             <h1 class="mb-3">Welcome to the Teacher's Dashboard!</h1>
-            <p class="lead">Track and encourage your students with ease.</p>
+            <p class="lead">Manage and encourage your students effectively.</p>
             <a href='/students' class="btn btn-primary btn-lg mt-3">Go to Students Page</a>
         </div>
     </div>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     """
 
-# API route to get all students
+# API Routes
 @app.route('/api/students', methods=['GET'])
 def api_get_students():
     return jsonify(students)
 
-# API route to get a student by ID
 @app.route('/api/students/<int:student_id>', methods=['GET'])
 def api_get_student(student_id):
     student = next((s for s in students if s["id"] == student_id), None)
@@ -36,15 +41,71 @@ def api_get_student(student_id):
         return jsonify(student)
     return jsonify({"error": "Student not found"}), 404
 
-# Web UI route to show all students with search form
+@app.route('/api/students', methods=['POST'])
+def api_create_student():
+    data = request.get_json()
+    new_student = {
+        "id": next_id(),
+        "name": data.get("name"),
+        "grade": data.get("grade"),
+        "section": data.get("section")
+    }
+    students.append(new_student)
+    return jsonify(new_student), 201
+
+@app.route('/api/students/<int:student_id>', methods=['PUT'])
+def api_update_student(student_id):
+    student = next((s for s in students if s["id"] == student_id), None)
+    if not student:
+        return jsonify({"error": "Student not found"}), 404
+    data = request.get_json()
+    student.update({
+        "name": data.get("name", student["name"]),
+        "grade": data.get("grade", student["grade"]),
+        "section": data.get("section", student["section"])
+    })
+    return jsonify(student)
+
+@app.route('/api/students/<int:student_id>', methods=['DELETE'])
+def api_delete_student(student_id):
+    global students
+    students = [s for s in students if s["id"] != student_id]
+    return jsonify({"message": "Student deleted successfully"})
+
+# Web UI for CRUD operations
 @app.route('/students', methods=['GET', 'POST'])
 def students_page():
+    message = None
     search_result = None
     if request.method == 'POST':
-        student_id = request.form.get('student_id')
-        if student_id and student_id.isdigit():
+        action = request.form.get("action")
+        student_id = request.form.get("student_id")
+        name = request.form.get("name")
+        grade = request.form.get("grade")
+        section = request.form.get("section")
+
+        if action == "search" and student_id and student_id.isdigit():
             student_id = int(student_id)
             search_result = next((s for s in students if s["id"] == student_id), None)
+        elif action == "add" and name and grade.isdigit() and section:
+            new_student = {"id": next_id(), "name": name, "grade": int(grade), "section": section}
+            students.append(new_student)
+            message = {"type": "success", "text": f"Student {name} added successfully!"}
+        elif action == "update" and student_id and student_id.isdigit():
+            student_id = int(student_id)
+            student = next((s for s in students if s["id"] == student_id), None)
+            if student:
+                student.update({"name": name or student["name"], 
+                                "grade": int(grade) if grade else student["grade"], 
+                                "section": section or student["section"]})
+                message = {"type": "success", "text": f"Student {student['name']} updated successfully!"}
+            else:
+                message = {"type": "danger", "text": "Student not found."}
+        elif action == "delete" and student_id and student_id.isdigit():
+            student_id = int(student_id)
+            global students
+            students = [s for s in students if s["id"] != student_id]
+            message = {"type": "success", "text": "Student deleted successfully."}
 
     html = """
     <!doctype html>
@@ -58,17 +119,33 @@ def students_page():
         <div class="container py-5">
             <div class="text-center mb-4">
                 <h1 class="display-5">Student Dashboard</h1>
-                <p class="lead text-success">Keep inspiring your students every day!</p>
+                <p class="lead text-success">Manage your students and celebrate their progress!</p>
             </div>
 
+            {% if message %}
+                <div class="alert alert-{{ message.type }}">{{ message.text }}</div>
+            {% endif %}
+
             <div class="card mb-4 shadow-sm p-4">
-                <h4>Search for a Student by ID</h4>
-                <form method="post" class="row g-3 align-items-center">
-                    <div class="col-auto">
-                        <input type="text" name="student_id" class="form-control" placeholder="Enter Student ID">
+                <h4 class="mb-3">CRUD Operations</h4>
+                <form method="post" class="row g-3">
+                    <div class="col-md-2">
+                        <input type="text" name="student_id" class="form-control" placeholder="ID">
                     </div>
-                    <div class="col-auto">
-                        <button type="submit" class="btn btn-success">Search</button>
+                    <div class="col-md-3">
+                        <input type="text" name="name" class="form-control" placeholder="Name">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" name="grade" class="form-control" placeholder="Grade">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" name="section" class="form-control" placeholder="Section">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" name="action" value="add" class="btn btn-success">Add</button>
+                        <button type="submit" name="action" value="update" class="btn btn-primary">Update</button>
+                        <button type="submit" name="action" value="delete" class="btn btn-danger">Delete</button>
+                        <button type="submit" name="action" value="search" class="btn btn-info">Search</button>
                     </div>
                 </form>
             </div>
@@ -84,7 +161,7 @@ def students_page():
                     </ul>
                 </div>
             {% elif search_result is not none %}
-                <div class="alert alert-warning">No student found with that ID. Keep encouraging them!</div>
+                <div class="alert alert-warning">No student found with that ID.</div>
             {% endif %}
 
             <div class="card shadow-sm p-3">
@@ -118,7 +195,7 @@ def students_page():
     </body>
     </html>
     """
-    return render_template_string(html, students=students, search_result=search_result)
+    return render_template_string(html, students=students, search_result=search_result, message=message)
 
 if __name__ == "__main__":
     app.run(debug=True)
