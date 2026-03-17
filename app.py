@@ -118,6 +118,7 @@ def home():
 def students_page():
     conn = get_db()
     message = None
+    search_result = None
 
     if request.method == 'POST':
         action = request.form.get("action")
@@ -132,19 +133,21 @@ def students_page():
             conn.commit()
             message = "Student added!"
 
-        elif action == "update":
-            conn.execute("""
-                UPDATE students
-                SET name=?, grade=?, section=?
-                WHERE id=?
-            """, (name, grade, section, student_id))
-            conn.commit()
-            message = "Student updated!"
-
         elif action == "delete":
             conn.execute("DELETE FROM students WHERE id=?", (student_id,))
             conn.commit()
             message = "Student deleted!"
+
+        elif action == "search":
+            search_result = conn.execute(
+                "SELECT * FROM students WHERE id=?",
+                (student_id,)
+            ).fetchone()
+
+            if search_result:
+                message = f"Found: {search_result['name']}"
+            else:
+                message = "Student not found"
 
     students = conn.execute("SELECT * FROM students").fetchall()
     conn.close()
@@ -152,70 +155,79 @@ def students_page():
     return render_template_string("""
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
+    <style>
+        body {
+            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+            min-height: 100vh;
+        }
+        .card {
+            border-radius: 15px;
+        }
+    </style>
+
     <div class="container mt-4">
-        <div class="d-flex justify-content-between">
-            <h2>Student Dashboard</h2>
-            <a href="/logout" class="btn btn-danger">Logout</a>
+
+        <div class="d-flex justify-content-between text-white">
+            <h2>🌸 Student Dashboard</h2>
+            <a href="/logout" class="btn btn-dark">Logout</a>
         </div>
 
         {% if message %}
-            <div class="alert alert-success mt-2">{{ message }}</div>
+            <div class="alert alert-light mt-3">{{ message }}</div>
         {% endif %}
 
         <!-- FORM -->
-        <form method="post" class="row g-2 mt-3">
-            <input type="hidden" name="student_id" id="student_id">
+        <div class="card p-4 mt-3 shadow">
+            <form method="post" class="row g-2">
+                <input class="form-control col" name="student_id" placeholder="Student ID (for search)">
+                <input class="form-control col" name="name" placeholder="Name">
+                <input class="form-control col" name="grade" placeholder="Grade">
+                <input class="form-control col" name="section" placeholder="Section">
 
-            <input class="form-control col" name="name" id="name" placeholder="Name">
-            <input class="form-control col" name="grade" id="grade" placeholder="Grade">
-            <input class="form-control col" name="section" id="section" placeholder="Section">
+                <div class="mt-2">
+                    <button name="action" value="add" class="btn btn-success">Add</button>
+                    <button name="action" value="search" class="btn btn-primary">Search</button>
+                </div>
+            </form>
+        </div>
 
-            <div class="mt-2">
-                <button name="action" value="add" class="btn btn-success">Add</button>
-                <button name="action" value="update" class="btn btn-primary">Update</button>
+        <!-- SEARCH RESULT -->
+        {% if search_result %}
+            <div class="card mt-3 p-3 shadow border-success">
+                <h5>🎉 Student Found!</h5>
+                <p><strong>ID:</strong> {{ search_result.id }}</p>
+                <p><strong>Name:</strong> {{ search_result.name }}</p>
+                <p><strong>Grade:</strong> {{ search_result.grade }}</p>
+                <p><strong>Section:</strong> {{ search_result.section }}</p>
             </div>
-        </form>
+        {% endif %}
 
         <!-- TABLE -->
-        <table class="table mt-4">
-            <tr>
-                <th>ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Action</th>
-            </tr>
+        <div class="card mt-4 p-3 shadow">
+            <table class="table table-hover">
+                <tr>
+                    <th>ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Action</th>
+                </tr>
 
-            {% for s in students %}
-            <tr>
-                <td>{{ s.id }}</td>
-                <td>{{ s.name }}</td>
-                <td>{{ s.grade }}</td>
-                <td>{{ s.section }}</td>
-                <td>
-                    <!-- EDIT BUTTON -->
-                    <button class="btn btn-primary btn-sm"
-                        onclick="fillForm('{{ s.id }}','{{ s.name }}','{{ s.grade }}','{{ s.section }}')">
-                        Edit
-                    </button>
+                {% for s in students %}
+                <tr>
+                    <td>{{ s.id }}</td>
+                    <td>{{ s.name }}</td>
+                    <td>{{ s.grade }}</td>
+                    <td>{{ s.section }}</td>
+                    <td>
+                        <form method="post">
+                            <input type="hidden" name="student_id" value="{{ s.id }}">
+                            <button name="action" value="delete" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
 
-                    <!-- DELETE -->
-                    <form method="post" style="display:inline;">
-                        <input type="hidden" name="student_id" value="{{ s.id }}">
-                        <button name="action" value="delete" class="btn btn-danger btn-sm">Delete</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
     </div>
-
-    <!-- AUTO-FILL SCRIPT -->
-    <script>
-    function fillForm(id, name, grade, section) {
-        document.getElementById("student_id").value = id;
-        document.getElementById("name").value = name;
-        document.getElementById("grade").value = grade;
-        document.getElementById("section").value = section;
-    }
-    </script>
-    """, students=students, message=message)
+    """, students=students, message=message, search_result=search_result)
 
 # -----------------------------
 # RUN
