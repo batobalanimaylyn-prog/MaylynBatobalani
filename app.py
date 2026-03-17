@@ -1,91 +1,125 @@
-from flask import Flask, jsonify
-from flask_sqlalchemy import SQLAlchemy
-import os
+from flask import Flask, jsonify, request
+import mysql.connector
 
 app = Flask(__name__)
 
-# Database configuration
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///students.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# -----------------------------
+# Database Configuration
+# -----------------------------
+db = mysql.connector.connect(
+    host="sql100.byethost7.com",
+    user="b7_41059855",     # replace this
+    password="Maylynvila15", # replace this
+    database="b7_41059855_student"
+)
 
-db = SQLAlchemy(app)
-
-
-# -------------------------
-# Student Model
-# -------------------------
-class Student(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    grade = db.Column(db.Integer, nullable=False)
-    section = db.Column(db.String(50), nullable=False)
+cursor = db.cursor(dictionary=True)
 
 
-# -------------------------
-# Create database + insert sample data
-# -------------------------
-with app.app_context():
-    db.create_all()
-
-    # Insert default students if database is empty
-    if Student.query.count() == 0:
-        student1 = Student(name="Juan Dela Cruz", grade=10, section="Zechariah")
-        student2 = Student(name="Maria Santos", grade=11, section="Genesis")
-        student3 = Student(name="Pedro Reyes", grade=12, section="Exodus")
-
-        db.session.add(student1)
-        db.session.add(student2)
-        db.session.add(student3)
-        db.session.commit()
-
-
-# -------------------------
+# -----------------------------
 # Home Route
-# -------------------------
+# -----------------------------
 @app.route("/")
 def home():
-    return jsonify({"message": "Student API with database"})
-
-
-# -------------------------
-# Get all students
-# -------------------------
-@app.route("/students")
-def get_students():
-
-    students = Student.query.all()
-
-    result = []
-
-    for student in students:
-        result.append({
-            "id": student.id,
-            "name": student.name,
-            "grade": student.grade,
-            "section": student.section
-        })
-
-    return jsonify(result)
-
-
-# -------------------------
-# Get one student
-# -------------------------
-@app.route("/students/<int:id>")
-def get_student(id):
-
-    student = Student.query.get_or_404(id)
-
     return jsonify({
-        "id": student.id,
-        "name": student.name,
-        "grade": student.grade,
-        "section": student.section
+        "message": "Student API connected to MySQL",
+        "routes": [
+            "GET /students",
+            "GET /students/<id>",
+            "POST /students",
+            "PUT /students/<id>",
+            "DELETE /students/<id>"
+        ]
     })
 
 
-# -------------------------
-# Run Server
-# -------------------------
+# -----------------------------
+# Get All Students
+# -----------------------------
+@app.route("/students", methods=["GET"])
+def get_students():
+
+    query = "SELECT * FROM students"
+    cursor.execute(query)
+
+    students = cursor.fetchall()
+
+    return jsonify(students)
+
+
+# -----------------------------
+# Get One Student
+# -----------------------------
+@app.route("/students/<int:id>", methods=["GET"])
+def get_student(id):
+
+    query = "SELECT * FROM students WHERE id=%s"
+    cursor.execute(query, (id,))
+
+    student = cursor.fetchone()
+
+    if student:
+        return jsonify(student)
+    else:
+        return jsonify({"error": "Student not found"}), 404
+
+
+# -----------------------------
+# Create Student
+# -----------------------------
+@app.route("/students", methods=["POST"])
+def create_student():
+
+    data = request.get_json()
+
+    name = data.get("name")
+    grade = data.get("grade")
+    section = data.get("section")
+
+    query = "INSERT INTO students (name, grade, section) VALUES (%s, %s, %s)"
+    cursor.execute(query, (name, grade, section))
+
+    db.commit()
+
+    return jsonify({"message": "Student added successfully"})
+
+
+# -----------------------------
+# Update Student
+# -----------------------------
+@app.route("/students/<int:id>", methods=["PUT"])
+def update_student(id):
+
+    data = request.get_json()
+
+    name = data.get("name")
+    grade = data.get("grade")
+    section = data.get("section")
+
+    query = "UPDATE students SET name=%s, grade=%s, section=%s WHERE id=%s"
+    cursor.execute(query, (name, grade, section, id))
+
+    db.commit()
+
+    return jsonify({"message": "Student updated successfully"})
+
+
+# -----------------------------
+# Delete Student
+# -----------------------------
+@app.route("/students/<int:id>", methods=["DELETE"])
+def delete_student(id):
+
+    query = "DELETE FROM students WHERE id=%s"
+    cursor.execute(query, (id,))
+
+    db.commit()
+
+    return jsonify({"message": "Student deleted successfully"})
+
+
+# -----------------------------
+# Run Flask Server
+# -----------------------------
 if __name__ == "__main__":
     app.run(debug=True)
