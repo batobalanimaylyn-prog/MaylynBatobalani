@@ -5,9 +5,17 @@ import os
 app = Flask(__name__)
 
 # Database configuration
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-    "DATABASE_URL", "sqlite:///students.db"
-)
+database_url = os.environ.get("DATABASE_URL")
+
+if database_url:
+    # Fix for PostgreSQL on Render
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///students.db"
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -35,12 +43,15 @@ def home():
 # CREATE Student
 @app.route("/students", methods=["POST"])
 def create_student():
-    data = request.json
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
 
     student = Student(
-        name=data["name"],
-        grade=data["grade"],
-        section=data["section"]
+        name=data.get("name"),
+        grade=data.get("grade"),
+        section=data.get("section")
     )
 
     db.session.add(student)
@@ -83,11 +94,14 @@ def get_student(id):
 @app.route("/students/<int:id>", methods=["PUT"])
 def update_student(id):
     student = Student.query.get_or_404(id)
-    data = request.json
+    data = request.get_json()
 
-    student.name = data["name"]
-    student.grade = data["grade"]
-    student.section = data["section"]
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    student.name = data.get("name", student.name)
+    student.grade = data.get("grade", student.grade)
+    student.section = data.get("section", student.section)
 
     db.session.commit()
 
@@ -106,4 +120,4 @@ def delete_student(id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
