@@ -11,10 +11,10 @@ app.secret_key = os.environ.get("SECRET_KEY", "fallbacksecret")
 # -----------------------------
 def get_db():
     return pymysql.connect(
-        host=os.environ.get("sql100.byethost7.com"),
-        user=os.environ.get("b7_41059855"),
-        password=os.environ.get("Maylynvila15"),
-        database=os.environ.get("b7_41059855_student"),
+        host=os.environ.get("DB_HOST", "sql100.byethost7.com"),
+        user=os.environ.get("DB_USER", "b7_41059855"),
+        password=os.environ.get("DB_PASS", "Maylynvila15"),
+        database=os.environ.get("DB_NAME", "b7_41059855_student"),
         cursorclass=pymysql.cursors.DictCursor
     )
 
@@ -46,7 +46,7 @@ def init_db():
 init_db()
 
 # -----------------------------
-# LOGIN REQUIRED DECORATOR
+# LOGIN REQUIRED
 # -----------------------------
 def login_required(func):
     def wrapper(*args, **kwargs):
@@ -80,9 +80,7 @@ def login():
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <div class="container mt-5 col-md-4">
         <h2 class="text-center">Teacher Login</h2>
-        {% if message %}
-            <div class="alert alert-danger">{{ message }}</div>
-        {% endif %}
+        {% if message %}<div class="alert alert-danger">{{ message }}</div>{% endif %}
         <form method="post">
             <input class="form-control mb-2" name="username" placeholder="Username" required>
             <input type="password" class="form-control mb-2" name="password" placeholder="Password" required>
@@ -124,7 +122,6 @@ def students_page():
         grade = request.form.get("grade")
         section = request.form.get("section")
 
-        # Convert student_id and grade to int safely
         student_id_int = int(student_id) if student_id and student_id.isdigit() else None
         grade_int = int(grade) if grade and grade.isdigit() else None
 
@@ -160,7 +157,7 @@ def students_page():
     students = cursor.fetchall()
     conn.close()
 
-    return render_template_string("""
+    return render_template_string(""" 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background: linear-gradient(135deg, #ff9a9e, #fad0c4); min-height: 100vh; }
@@ -171,11 +168,7 @@ def students_page():
             <h2>🌸 Student Dashboard</h2>
             <a href="/logout" class="btn btn-dark">Logout</a>
         </div>
-        {% if message %}
-            <div class="alert alert-light mt-3">{{ message }}</div>
-        {% endif %}
-
-        <!-- FORM -->
+        {% if message %}<div class="alert alert-light mt-3">{{ message }}</div>{% endif %}
         <div class="card p-4 mt-3 shadow">
             <form method="post" class="row g-2">
                 <input class="form-control col" name="student_id" placeholder="Student ID (for search/edit)">
@@ -189,19 +182,15 @@ def students_page():
                 </div>
             </form>
         </div>
-
-        <!-- SEARCH RESULT -->
         {% if search_result %}
-            <div class="card mt-3 p-3 shadow border-success">
-                <h5>🎉 Student Found!</h5>
-                <p><strong>ID:</strong> {{ search_result.id }}</p>
-                <p><strong>Name:</strong> {{ search_result.name }}</p>
-                <p><strong>Grade:</strong> {{ search_result.grade }}</p>
-                <p><strong>Section:</strong> {{ search_result.section }}</p>
-            </div>
+        <div class="card mt-3 p-3 shadow border-success">
+            <h5>🎉 Student Found!</h5>
+            <p><strong>ID:</strong> {{ search_result.id }}</p>
+            <p><strong>Name:</strong> {{ search_result.name }}</p>
+            <p><strong>Grade:</strong> {{ search_result.grade }}</p>
+            <p><strong>Section:</strong> {{ search_result.section }}</p>
+        </div>
         {% endif %}
-
-        <!-- STUDENT TABLE -->
         <div class="card mt-4 p-3 shadow">
             <table class="table table-hover">
                 <tr><th>ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Action</th></tr>
