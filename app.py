@@ -11,10 +11,10 @@ app.secret_key = os.environ.get("SECRET_KEY", "fallbacksecret")
 # -----------------------------
 def get_db():
     return pymysql.connect(
-        host=os.environ.get("DB_HOST"),
-        user=os.environ.get("DB_USER"),
-        password=os.environ.get("DB_PASS"),
-        database=os.environ.get("DB_NAME"),
+        host=os.environ.get("sql100.byethost7.com"),
+        user=os.environ.get("b7_41059855"),
+        password=os.environ.get("Maylynvila15"),
+        database=os.environ.get("b7_41059855_student"),
         cursorclass=pymysql.cursors.DictCursor
     )
 
