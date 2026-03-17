@@ -1,70 +1,73 @@
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 app = Flask(__name__)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///students.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL", "sqlite:///students.db"
+)
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# Database Model
+
+# Student Model
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100))
-    grade = db.Column(db.Integer)
-    section = db.Column(db.String(50))
+    name = db.Column(db.String(100), nullable=False)
+    grade = db.Column(db.Integer, nullable=False)
+    section = db.Column(db.String(50), nullable=False)
 
-# Create database
+
+# Create database tables
 with app.app_context():
     db.create_all()
 
 
-# Home route
-@app.route('/')
+# Home Route
+@app.route("/")
 def home():
-    return "Welcome to my Flask CRUD API!"
+    return jsonify({"message": "Welcome to the Flask CRUD API"})
 
 
-# CREATE student
-@app.route('/student', methods=['POST'])
+# CREATE Student
+@app.route("/students", methods=["POST"])
 def create_student():
     data = request.json
 
-    new_student = Student(
-        name=data['name'],
-        grade=data['grade'],
-        section=data['section']
+    student = Student(
+        name=data["name"],
+        grade=data["grade"],
+        section=data["section"]
     )
 
-    db.session.add(new_student)
+    db.session.add(student)
     db.session.commit()
 
-    return jsonify({"message": "Student added successfully"})
+    return jsonify({"message": "Student created successfully"})
 
 
-# READ all students
-@app.route('/students', methods=['GET'])
+# READ All Students
+@app.route("/students", methods=["GET"])
 def get_students():
     students = Student.query.all()
 
-    output = []
-
+    result = []
     for student in students:
-        student_data = {
+        result.append({
             "id": student.id,
             "name": student.name,
             "grade": student.grade,
             "section": student.section
-        }
-        output.append(student_data)
+        })
 
-    return jsonify(output)
+    return jsonify(result)
 
 
-# READ one student
-@app.route('/student/<int:id>', methods=['GET'])
+# READ One Student
+@app.route("/students/<int:id>", methods=["GET"])
 def get_student(id):
     student = Student.query.get_or_404(id)
 
@@ -76,23 +79,23 @@ def get_student(id):
     })
 
 
-# UPDATE student
-@app.route('/student/<int:id>', methods=['PUT'])
+# UPDATE Student
+@app.route("/students/<int:id>", methods=["PUT"])
 def update_student(id):
     student = Student.query.get_or_404(id)
     data = request.json
 
-    student.name = data['name']
-    student.grade = data['grade']
-    student.section = data['section']
+    student.name = data["name"]
+    student.grade = data["grade"]
+    student.section = data["section"]
 
     db.session.commit()
 
     return jsonify({"message": "Student updated successfully"})
 
 
-# DELETE student
-@app.route('/student/<int:id>', methods=['DELETE'])
+# DELETE Student
+@app.route("/students/<int:id>", methods=["DELETE"])
 def delete_student(id):
     student = Student.query.get_or_404(id)
 
@@ -102,5 +105,5 @@ def delete_student(id):
     return jsonify({"message": "Student deleted successfully"})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
