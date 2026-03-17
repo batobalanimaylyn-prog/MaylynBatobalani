@@ -7,7 +7,7 @@ app = Flask(__name__)
 # Database Configuration
 # -----------------------------
 db = mysql.connector.connect(
-    host="sql100.byethost7.com",
+    host="sql100.byetcluster.com",
     user="b7_41059855",     # replace this
     password="Maylynvila15", # replace this
     database="b7_41059855_student"
