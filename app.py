@@ -1,23 +1,49 @@
+# app.py
 from flask import Flask, request, render_template_string, redirect, url_for, session
 import pymysql
 import os
 
 app = Flask(__name__)
-app.secret_key = "secret123"  # Change this in production
+app.secret_key = os.environ.get("SECRET_KEY", "fallbacksecret")
 
 # -----------------------------
 # DATABASE CONNECTION
 # -----------------------------
 def get_db():
-    # Using environment variables for safety
-    conn = pymysql.connect(
-        host=os.getenv("DB_HOST", "	sql100.byethost7.com"),
-        user=os.getenv("DB_USER", "b7_41059855_student"),
-        password=os.getenv("DB_PASS", ""),
-        database=os.getenv("DB_NAME", "students_db"),
+    return pymysql.connect(
+        host=os.environ.get("DB_HOST"),
+        user=os.environ.get("DB_USER"),
+        password=os.environ.get("DB_PASS"),
+        database=os.environ.get("DB_NAME"),
         cursorclass=pymysql.cursors.DictCursor
     )
-    return conn
+
+def init_db():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS students (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        grade INT NOT NULL,
+        section VARCHAR(50) NOT NULL
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        password VARCHAR(50) NOT NULL
+    )
+    """)
+    cursor.execute("""
+    INSERT IGNORE INTO users (id, username, password)
+    VALUES (1, 'teacher', 'password123')
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
 
 # -----------------------------
 # LOGIN REQUIRED DECORATOR
@@ -40,9 +66,9 @@ def login():
         username = request.form.get("username")
         password = request.form.get("password")
         conn = get_db()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
-            user = cursor.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
+        user = cursor.fetchone()
         conn.close()
         if user:
             session["user"] = username
@@ -81,12 +107,13 @@ def home():
     return redirect(url_for("login"))
 
 # -----------------------------
-# STUDENTS PAGE
+# STUDENTS DASHBOARD
 # -----------------------------
 @app.route('/students', methods=['GET', 'POST'])
 @login_required
 def students_page():
     conn = get_db()
+    cursor = conn.cursor()
     message = None
     search_result = None
 
@@ -97,41 +124,40 @@ def students_page():
         grade = request.form.get("grade")
         section = request.form.get("section")
 
-        with conn.cursor() as cursor:
-            # ---------------- Add ----------------
-            if action == "add" and name and grade and section:
-                cursor.execute("INSERT INTO students (name, grade, section) VALUES (%s, %s, %s)",
-                               (name, grade, section))
+        # Convert student_id and grade to int safely
+        student_id_int = int(student_id) if student_id and student_id.isdigit() else None
+        grade_int = int(grade) if grade and grade.isdigit() else None
+
+        if action == "add" and name and grade_int and section:
+            cursor.execute("INSERT INTO students (name, grade, section) VALUES (%s, %s, %s)", (name, grade_int, section))
+            conn.commit()
+            message = "Student added!"
+
+        elif action == "delete" and student_id_int:
+            cursor.execute("DELETE FROM students WHERE id=%s", (student_id_int,))
+            conn.commit()
+            message = "Student deleted!"
+
+        elif action == "search" and student_id_int:
+            cursor.execute("SELECT * FROM students WHERE id=%s", (student_id_int,))
+            search_result = cursor.fetchone()
+            message = f"Found: {search_result['name']}" if search_result else "Student not found"
+
+        elif action == "edit" and student_id_int and (name or grade_int or section):
+            cursor.execute("SELECT * FROM students WHERE id=%s", (student_id_int,))
+            student = cursor.fetchone()
+            if student:
+                new_name = name if name else student['name']
+                new_grade = grade_int if grade_int else student['grade']
+                new_section = section if section else student['section']
+                cursor.execute("UPDATE students SET name=%s, grade=%s, section=%s WHERE id=%s", (new_name, new_grade, new_section, student_id_int))
                 conn.commit()
-                message = "Student added successfully!"
+                message = "Student updated!"
+            else:
+                message = "Student not found"
 
-            # ---------------- Delete ----------------
-            elif action == "delete" and student_id:
-                cursor.execute("DELETE FROM students WHERE id=%s", (student_id,))
-                conn.commit()
-                message = "Student deleted successfully!"
-
-            # ---------------- Edit ----------------
-            elif action == "edit" and student_id:
-                cursor.execute("UPDATE students SET name=%s, grade=%s, section=%s WHERE id=%s",
-                               (name, grade, section, student_id))
-                conn.commit()
-                message = "Student updated successfully!"
-
-            # ---------------- Search ----------------
-            elif action == "search" and student_id:
-                cursor.execute("SELECT * FROM students WHERE id=%s", (student_id,))
-                search_result = cursor.fetchone()
-                if search_result:
-                    message = f"Student found: {search_result['name']}"
-                else:
-                    message = "Student not found"
-
-    # Fetch all students for table
-    with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM students")
-        students = cursor.fetchall()
-
+    cursor.execute("SELECT * FROM students")
+    students = cursor.fetchall()
     conn.close()
 
     return render_template_string("""
@@ -140,13 +166,11 @@ def students_page():
         body { background: linear-gradient(135deg, #ff9a9e, #fad0c4); min-height: 100vh; }
         .card { border-radius: 15px; }
     </style>
-
     <div class="container mt-4">
         <div class="d-flex justify-content-between text-white">
             <h2>🌸 Student Dashboard</h2>
             <a href="/logout" class="btn btn-dark">Logout</a>
         </div>
-
         {% if message %}
             <div class="alert alert-light mt-3">{{ message }}</div>
         {% endif %}
@@ -154,15 +178,14 @@ def students_page():
         <!-- FORM -->
         <div class="card p-4 mt-3 shadow">
             <form method="post" class="row g-2">
-                <input class="form-control col" name="student_id" placeholder="Student ID (for edit/search)">
+                <input class="form-control col" name="student_id" placeholder="Student ID (for search/edit)">
                 <input class="form-control col" name="name" placeholder="Name">
                 <input class="form-control col" name="grade" placeholder="Grade">
                 <input class="form-control col" name="section" placeholder="Section">
-
                 <div class="mt-2">
                     <button name="action" value="add" class="btn btn-success">Add</button>
-                    <button name="action" value="edit" class="btn btn-warning">Edit</button>
                     <button name="action" value="search" class="btn btn-primary">Search</button>
+                    <button name="action" value="edit" class="btn btn-warning">Edit</button>
                 </div>
             </form>
         </div>
@@ -178,13 +201,10 @@ def students_page():
             </div>
         {% endif %}
 
-        <!-- TABLE -->
+        <!-- STUDENT TABLE -->
         <div class="card mt-4 p-3 shadow">
             <table class="table table-hover">
-                <tr>
-                    <th>ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Action</th>
-                </tr>
-
+                <tr><th>ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Action</th></tr>
                 {% for s in students %}
                 <tr>
                     <td>{{ s.id }}</td>
@@ -192,13 +212,6 @@ def students_page():
                     <td>{{ s.grade }}</td>
                     <td>{{ s.section }}</td>
                     <td>
-                        <form method="post" style="display:inline;">
-                            <input type="hidden" name="student_id" value="{{ s.id }}">
-                            <input type="hidden" name="name" value="{{ s.name }}">
-                            <input type="hidden" name="grade" value="{{ s.grade }}">
-                            <input type="hidden" name="section" value="{{ s.section }}">
-                            <button name="action" value="edit" class="btn btn-warning btn-sm">Edit</button>
-                        </form>
                         <form method="post" style="display:inline;">
                             <input type="hidden" name="student_id" value="{{ s.id }}">
                             <button name="action" value="delete" class="btn btn-danger btn-sm">Delete</button>
