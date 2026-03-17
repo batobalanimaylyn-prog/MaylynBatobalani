@@ -2,7 +2,7 @@ from flask import Flask, request, render_template_string, redirect, url_for, ses
 import sqlite3
 
 app = Flask(__name__)
-app.secret_key = "secret123"  # change this in production
+app.secret_key = "secret123"
 
 # -----------------------------
 # DATABASE
@@ -15,7 +15,6 @@ def get_db():
 def init_db():
     conn = get_db()
 
-    # Students table
     conn.execute("""
     CREATE TABLE IF NOT EXISTS students (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +24,6 @@ def init_db():
     )
     """)
 
-    # Users table
     conn.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +32,6 @@ def init_db():
     )
     """)
 
-    # Default teacher account
     conn.execute("""
     INSERT OR IGNORE INTO users (id, username, password)
     VALUES (1, 'teacher', 'password123')
@@ -46,7 +43,7 @@ def init_db():
 init_db()
 
 # -----------------------------
-# LOGIN REQUIRED DECORATOR
+# LOGIN REQUIRED
 # -----------------------------
 def login_required(func):
     def wrapper(*args, **kwargs):
@@ -57,7 +54,7 @@ def login_required(func):
     return wrapper
 
 # -----------------------------
-# LOGIN PAGE
+# LOGIN
 # -----------------------------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -82,8 +79,9 @@ def login():
 
     return render_template_string("""
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <div class="container mt-5 col-md-4">
-        <h2 class="mb-3 text-center">Teacher Login</h2>
+        <h2 class="text-center">Teacher Login</h2>
 
         {% if message %}
             <div class="alert alert-danger">{{ message }}</div>
@@ -113,7 +111,7 @@ def home():
     return redirect(url_for("login"))
 
 # -----------------------------
-# STUDENTS PAGE (PROTECTED)
+# STUDENTS PAGE
 # -----------------------------
 @app.route('/students', methods=['GET', 'POST'])
 @login_required
@@ -134,10 +132,19 @@ def students_page():
             conn.commit()
             message = "Student added!"
 
+        elif action == "update":
+            conn.execute("""
+                UPDATE students
+                SET name=?, grade=?, section=?
+                WHERE id=?
+            """, (name, grade, section, student_id))
+            conn.commit()
+            message = "Student updated!"
+
         elif action == "delete":
             conn.execute("DELETE FROM students WHERE id=?", (student_id,))
             conn.commit()
-            message = "Deleted!"
+            message = "Student deleted!"
 
     students = conn.execute("SELECT * FROM students").fetchall()
     conn.close()
@@ -155,16 +162,26 @@ def students_page():
             <div class="alert alert-success mt-2">{{ message }}</div>
         {% endif %}
 
+        <!-- FORM -->
         <form method="post" class="row g-2 mt-3">
-            <input class="form-control col" name="name" placeholder="Name">
-            <input class="form-control col" name="grade" placeholder="Grade">
-            <input class="form-control col" name="section" placeholder="Section">
+            <input type="hidden" name="student_id" id="student_id">
 
-            <button name="action" value="add" class="btn btn-success mt-2">Add</button>
+            <input class="form-control col" name="name" id="name" placeholder="Name">
+            <input class="form-control col" name="grade" id="grade" placeholder="Grade">
+            <input class="form-control col" name="section" id="section" placeholder="Section">
+
+            <div class="mt-2">
+                <button name="action" value="add" class="btn btn-success">Add</button>
+                <button name="action" value="update" class="btn btn-primary">Update</button>
+            </div>
         </form>
 
+        <!-- TABLE -->
         <table class="table mt-4">
-            <tr><th>ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Action</th></tr>
+            <tr>
+                <th>ID</th><th>Name</th><th>Grade</th><th>Section</th><th>Action</th>
+            </tr>
+
             {% for s in students %}
             <tr>
                 <td>{{ s.id }}</td>
@@ -172,7 +189,14 @@ def students_page():
                 <td>{{ s.grade }}</td>
                 <td>{{ s.section }}</td>
                 <td>
-                    <form method="post">
+                    <!-- EDIT BUTTON -->
+                    <button class="btn btn-primary btn-sm"
+                        onclick="fillForm('{{ s.id }}','{{ s.name }}','{{ s.grade }}','{{ s.section }}')">
+                        Edit
+                    </button>
+
+                    <!-- DELETE -->
+                    <form method="post" style="display:inline;">
                         <input type="hidden" name="student_id" value="{{ s.id }}">
                         <button name="action" value="delete" class="btn btn-danger btn-sm">Delete</button>
                     </form>
@@ -181,6 +205,16 @@ def students_page():
             {% endfor %}
         </table>
     </div>
+
+    <!-- AUTO-FILL SCRIPT -->
+    <script>
+    function fillForm(id, name, grade, section) {
+        document.getElementById("student_id").value = id;
+        document.getElementById("name").value = name;
+        document.getElementById("grade").value = grade;
+        document.getElementById("section").value = section;
+    }
+    </script>
     """, students=students, message=message)
 
 # -----------------------------
