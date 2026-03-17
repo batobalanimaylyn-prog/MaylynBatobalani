@@ -1,6 +1,5 @@
 from flask import Flask, jsonify, request, render_template_string
 import sqlite3
-import os
 
 app = Flask(__name__)
 DB_NAME = 'students.db'
@@ -43,33 +42,115 @@ def init_db():
 init_db()
 
 # -----------------------------
-# UI Page (HTML + JS + Peach Dashboard)
+# Pink Gradient HTML Page with Flowers
 # -----------------------------
 HTML_PAGE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Student Dashboard</title>
+    <title>Student Dashboard 🌸</title>
     <style>
-        body { font-family: Arial; background-color: #FFE5B4; color: #4B2E2E; padding: 30px;}
-        h2 { text-align: center; margin-bottom: 20px; }
-        .dashboard { display: flex; justify-content: space-around; margin-bottom: 20px; }
-        .card { background-color: #FFFFFF; padding: 20px; border-radius: 10px; width: 200px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
-        .card h3 { margin: 5px 0; color: #FFAD81; }
-        .input-container { text-align: center; margin-bottom: 20px; }
-        input, select { margin: 5px; padding: 10px; border-radius: 5px; border: 1px solid #D9A066;}
-        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 5px; background-color: #FFB07C; color: white; cursor: pointer; font-weight: bold;}
-        button:hover { background-color: #FFA15C;}
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; background-color: #FFFFFF; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
-        th, td { padding: 12px; text-align: center; }
-        th { background-color: #FFAD81; color: white; }
-        tr:nth-child(even) { background-color: #FFF1E0; }
-        tr:hover { background-color: #FFD8B0; }
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #ff9ccf, #ffc0cb);
+            color: #4B2E2E;
+            padding: 30px;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Floating flower emojis */
+        body::before {
+            content: "🌸 🌸 🌸 🌸 🌸";
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2em;
+            opacity: 0.2;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #ff4081;
+            font-family: 'Comic Sans MS', cursive;
+        }
+
+        .dashboard {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 15px;
+            width: 200px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .card h3 {
+            margin: 5px 0;
+            color: #ff69b4;
+        }
+
+        .input-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        input, select {
+            margin: 5px;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #D9A066;
+        }
+
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background-color: #ff69b4;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #ff4081;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #ff69b4;
+            color: white;
+        }
+
+        tr:nth-child(even) { background-color: #ffe0e6; }
+        tr:hover { background-color: #ffc0cb; }
     </style>
 </head>
 <body>
 
-<h2>🎓 Student Dashboard</h2>
+<h2>🌸 Student Dashboard 🌸</h2>
 
 <div class="dashboard">
     <div class="card">
@@ -113,7 +194,6 @@ HTML_PAGE = """
 
 <script>
 let allStudents = [];
-
 const API = "/student";
 
 function fetchStudents() {
@@ -200,7 +280,8 @@ fetchStudents();
 # Routes
 # -----------------------------
 @app.route('/')
-def home(): return render_template_string(HTML_PAGE)
+def home(): 
+    return render_template_string(HTML_PAGE)
 
 @app.route('/student', methods=['POST'])
 def add_student():
